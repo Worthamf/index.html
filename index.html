@@ -1,0 +1,289 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Virtual Rubik's Cube – Single-File App</title>
+<!-- Twisty Player: interactive 3D cube with mouse/gesture face turns -->
+<script type="module">
+  import "https://cdn.cubing.net/v0/js/cubing/twisty";
+</script>
+<style>
+  :root {
+    --bg: #0e0f13;
+    --panel: #161821;
+    --text: #e6e8ef;
+    --muted: #9aa3b2;
+    --accent: #4f8cff;
+    --border: #222532;
+    --btn: #1e2535;
+    --btn-hover: #263047;
+    --danger: #ff4d4f;
+    --ok: #1db954;
+    --radius: 14px;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji", "Segoe UI Emoji";
+    color: var(--text);
+    background: radial-gradient(1200px 800px at 70% 10%, #171a24 0%, #0e0f13 60%);
+  }
+
+  header {
+    padding: 20px clamp(16px, 2vw, 28px) 8px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  header h1 {
+    margin: 0; font-size: clamp(18px, 2.6vw, 26px); letter-spacing: 0.2px; font-weight: 700;
+  }
+  header .sub {
+    color: var(--muted); font-size: 12px; margin-top: 4px;
+  }
+
+  .app {
+    display: grid; grid-template-columns: 1fr 360px;
+    gap: 18px; padding: 0 clamp(16px, 2vw, 28px) 24px;
+  }
+  @media (max-width: 980px) {
+    .app { grid-template-columns: 1fr; }
+  }
+
+  .viewer {
+    min-height: 60vh; display: grid; place-items: center;
+    background: linear-gradient(180deg,#11141c 0%,#0d0f14 100%);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    position: relative;
+  }
+  twisty-player {
+    width: min(92vw, 820px);
+    height: min(70vh, 640px);
+    --twisty-background: transparent;
+    --twisty-foreground: var(--text);
+  }
+
+  .panel {
+    background: linear-gradient(180deg, #141824 0%, #10131c 100%);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px;
+  }
+  .panel h2 { margin: 4px 0 14px; font-size: 16px; }
+  .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .row + .row { margin-top: 10px; }
+
+  .field {
+    display: grid; gap: 6px; margin-bottom: 8px;
+  }
+  label { font-size: 12px; color: var(--muted); }
+  input[type="number"] {
+    width: 110px; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--border);
+    color: var(--text); background: #0f1220; outline: none;
+  }
+  .buttons { display: flex; flex-wrap: wrap; gap: 10px; }
+
+  button {
+    border: 1px solid var(--border);
+    background: var(--btn);
+    color: var(--text);
+    padding: 10px 14px;
+    border-radius: 10px;
+    cursor: pointer;
+    font-weight: 600;
+    letter-spacing: .2px;
+  }
+  button:hover { background: var(--btn-hover); }
+  .primary { border-color: #3556ff55; box-shadow: inset 0 0 0 1px #3556ff55; }
+  .success { border-color: #1db95466; }
+  .danger { border-color: #ff4d4f55; }
+
+  .alg-box {
+    margin-top: 12px; background: #0f1220; border: 1px solid var(--border);
+    border-radius: 10px; padding: 10px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+    font-size: 13px; color: #cfd7e6; min-height: 42px;
+    white-space: pre-wrap; word-break: break-word;
+  }
+
+  .legend {
+    display: grid; grid-template-columns: repeat(6, minmax(0,1fr)); gap: 8px; margin-top: 14px;
+  }
+  .chip {
+    display: flex; align-items: center; gap: 8px; padding: 8px 10px; border: 1px solid var(--border);
+    border-radius: 10px; background: #111524; font-size: 12px; color: var(--muted);
+  }
+  .swatch { width: 14px; height: 14px; border-radius: 4px; border: 1px solid #0008; }
+  .white { background:#ffffff; }
+  .yellow{ background:#ffd500; }
+  .blue  { background:#0046ad; }
+  .green { background:#009b48; }
+  .orange{ background:#ff5800; }
+  .red   { background:#b90000; }
+
+  footer { color: var(--muted); font-size: 12px; padding: 6px clamp(16px, 2vw, 28px) 20px; }
+  .hint { color: var(--muted); font-size: 12px; margin-top: 8px; }
+</style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>Virtual Rubik’s Cube</h1>
+      <div class="sub">Drag faces to turn • Drag background to orbit • Standard color scheme</div>
+    </div>
+  </header>
+
+  <main class="app">
+    <section class="viewer">
+      <!-- Interactive 3D cube (face-drag enabled by default) -->
+      <twisty-player id="player"
+        puzzle="3x3x3"
+        control-panel="none"
+        camera-latitude-limit="90"
+        experimental-stickering="stickers-only"
+        hint-facelets="none"
+        background="none"
+        visualization="3D"
+        experimental-setup-alg=""
+        alg=""
+        experimental-orthographic="false"
+        tempo-scale="1.2"
+      ></twisty-player>
+    </section>
+
+    <aside class="panel" aria-label="Controls">
+      <h2>Controls</h2>
+
+      <div class="field">
+        <label for="moves">Scramble length</label>
+        <div class="row">
+          <input id="moves" type="number" min="1" max="200" value="25" />
+          <div class="buttons">
+            <button id="btn-scramble" class="primary">Scramble</button>
+            <button id="btn-solve"    class="success">Solve (invert scramble)</button>
+            <button id="btn-reset"    class="danger">Reset</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="field">
+        <label>Current scramble</label>
+        <div id="scrambleBox" class="alg-box" aria-live="polite"></div>
+      </div>
+
+      <div class="field">
+        <label>Tips</label>
+        <div class="hint">• <strong>Face turns:</strong> click and drag on a face.<br/>• <strong>View:</strong> drag the background to orbit, scroll to zoom.<br/>• “Solve” plays the reverse of the latest scramble.</div>
+      </div>
+
+      <div class="legend" aria-label="Color legend">
+        <div class="chip"><span class="swatch white"></span>White</div>
+        <div class="chip"><span class="swatch yellow"></span>Yellow</div>
+        <div class="chip"><span class="swatch blue"></span>Blue</div>
+        <div class="chip"><span class="swatch green"></span>Green</div>
+        <div class="chip"><span class="swatch orange"></span>Orange</div>
+        <div class="chip"><span class="swatch red"></span>Red</div>
+      </div>
+    </aside>
+  </main>
+
+  <footer>
+    Built as a single-file app. Powered by <code>twisty-player</code> for smooth 3D interaction.
+  </footer>
+
+<script>
+  // --- Simple scramble generator with standard 3×3 moves ---
+  // Faces and modifiers; avoids repeating the same face or opposite-axis back-to-back.
+  const FACES = ["U","D","L","R","F","B"];
+  const MODS  = ["", "'", "2"];
+  const OPP_AXIS = {
+    U: "D", D: "U", L: "R", R: "L", F: "B", B: "F"
+  };
+  function axisOf(face){ return ({U:"UD",D:"UD",L:"LR",R:"LR",F:"FB",B:"FB"})[face]; }
+
+  function generateScramble(n = 25) {
+    const moves = [];
+    let prevFace = null, prevAxis = null;
+    for (let i = 0; i < n; i++) {
+      let face, mod;
+      do {
+        face = FACES[Math.floor(Math.random() * FACES.length)];
+      } while (
+        face === prevFace ||                              // avoid same face
+        (prevAxis && axisOf(face) === prevAxis && face === OPP_AXIS[prevFace]) // avoid A then opposite-A immediate
+      );
+      mod = MODS[Math.floor(Math.random() * MODS.length)];
+      moves.push(face + mod);
+      prevFace = face;
+      prevAxis = axisOf(face);
+    }
+    return moves.join(" ");
+  }
+
+  function invertAlg(algStr) {
+    if (!algStr.trim()) return "";
+    return algStr
+      .trim()
+      .split(/\s+/)
+      .reverse()
+      .map(tok => {
+        // tokens like "R", "R'", "R2"
+        if (tok.endsWith("2")) return tok;         // R2 is its own inverse
+        if (tok.endsWith("'")) return tok.slice(0, -1); // R' -> R
+        return tok + "'";                          // R -> R'
+      })
+      .join(" ");
+  }
+
+  const player = document.getElementById("player");
+  const scrambleBox = document.getElementById("scrambleBox");
+  const movesInput = document.getElementById("moves");
+  const btnScramble = document.getElementById("btn-scramble");
+  const btnSolve = document.getElementById("btn-solve");
+  const btnReset = document.getElementById("btn-reset");
+
+  let lastScramble = "";
+
+  function applySetup(alg) {
+    // Put the cube into a scrambled state: we set the setup (state) and clear the play alg.
+    player.experimentalSetupAlg = alg;
+    player.alg = "";
+  }
+
+  function playAlg(alg) {
+    // Animate an algorithm from the current state.
+    player.alg = alg;
+    // restart animation
+    player.playbackPosition = 0;
+    player.play();
+  }
+
+  btnScramble.addEventListener("click", () => {
+    const n = Math.max(1, Math.min(200, Number(movesInput.value) || 25));
+    lastScramble = generateScramble(n);
+    scrambleBox.textContent = lastScramble;
+    applySetup(lastScramble);
+  });
+
+  btnSolve.addEventListener("click", () => {
+    if (!lastScramble) return;
+    const solution = invertAlg(lastScramble);
+    // Play solution from the scramble state:
+    // Ensure we are in that scramble state first.
+    applySetup(lastScramble);
+    // Slight timeout so the viewer applies the setup before playing the solution.
+    setTimeout(() => playAlg(solution), 60);
+  });
+
+  btnReset.addEventListener("click", () => {
+    lastScramble = "";
+    scrambleBox.textContent = "";
+    applySetup(""); // solved state
+  });
+
+  // Initialize: solved state
+  applySetup("");
+</script>
+</body>
+</html>
